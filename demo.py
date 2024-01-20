@@ -1,11 +1,16 @@
 import cv2
 import time
-import queue
-import pyautogui
+import threading
+#import pyautogui
 import numpy as np
 import mediapipe as mp
-from mouse import move_mouse
+from mouse import *
 from gaze_tracking import GazeTracking
+
+pyautogui.FAILSAFE = False
+
+
+
 
 
 gaze = GazeTracking()
@@ -18,15 +23,19 @@ drawing_spec = mp_drawing.DrawingSpec(thickness = 1, circle_radius = 1)
 
 cap = cv2.VideoCapture(0)
 pTime = 0
-pTime_call = 0
+wait_time = time.time()
 
-que_x = queue.Queue(10)
-que_y = queue.Queue(10)
+
 
 while cap.isOpened():
+    #Frame Rate
     cTime = time.time()
+    fps = 1/(cTime-pTime)
+    pTime = cTime
     success, frame = cap.read()
-    
+     
+ 
+   
     
     #Eyes tracking
     gaze.refresh(frame)
@@ -51,7 +60,7 @@ while cap.isOpened():
 
     if results.multi_face_landmarks:
         for face_landmarks in results.multi_face_landmarks:
-            for id, lm in enumerate(face_landmarks.landmark):
+            for id, lm in enumerate(face_landmarks.landmark): 
                 if id in (33, 263, 1, 61, 291, 199):
                     if id == 1:
                         nose_2d = (lm.x * img_w, lm.y * img_h)
@@ -90,41 +99,6 @@ while cap.isOpened():
             z = angles[2] * 360
 
 
-            #Check the user's view direction
-            """
-            if gaze.is_blinking() and (cTime - pTime_call) < 0.2:
-                print(cTime - pTime_call) 
-                pyautogui.click()"""
-            
-            que_x.put(x)
-            que_y.put(y)
-
-
-            if que_y.full():
-                sum_que = abs(max(que_x.queue)) + abs(max(que_y.queue))
-                m, n =  que_x.get(), que_y.get()
-                print(sum_que == abs(m+n))
-                
-           
-                if sum_que == abs(m +n):
-                    move_mouse(m, n)
-
-            pTime_call = cTime
-            
-
-            
-            """
-            if y < -10:
-                text = "Nhin trai"
-            elif y > 10:
-                text = "Nhin phai"
-            elif x < -10:
-                text = "Nhin xuong"
-            elif x > 10:
-                text = "Nhin len"
-            else:
-                text = "Nhin thang"
-            #qprint(text)"""
 
             #Display nose direction
             noce_3d_projection, jacobian = cv2.projectPoints(nose_3d, rot_vec, trans_vec, cam_matrix, dist_matrix)
@@ -134,19 +108,39 @@ while cap.isOpened():
 
             cv2.line(frame, p1, p2, (0, 255, 255), 2)
 
-            #Add text on the image
-            
-            #cv2.putText(frame, text, (20, 100), cv2.FONT_HERSHEY_PLAIN, 2, (255, 200, 200), 2)
-            cv2.putText(frame, "x: " + str(np.round(x, 2)), (500, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
-            cv2.putText(frame, "y: " + str(np.round(y, 2)), (500, 100), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
-            cv2.putText(frame, "z: " + str(np.round(z, 2)), (500, 150), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
+    #Add text on the image
+    
 
+    cv2.putText(frame, "x: " + str(np.round(x, 2)), (500, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
+    cv2.putText(frame, "y: " + str(np.round(y, 2)), (500, 100), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
+    cv2.putText(frame, "z: " + str(np.round(z, 2)), (500, 150), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 255), 2)
+
+
+    #click
+    if gaze.is_left():
+        pyautogui.click()
+    if gaze.is_right():
+        pyautogui.rightClick()
+     #mouse scroll
+   
+    
+
+    threa_scroll = threading.Thread(target=scroll_mose, args=(x,))
+    cTime
+    if abs(x) > 22 and time.time() - wait_time > 0.5:
+        wait_time = time.time()
+        pyautogui.scroll(2)
+        #threa_scroll.start()
+
+
+    #Run multi-threaded mouse
+    mouse_thea = threading.Thread(target = move_mouse, args=(x,y,))
+    if not mouse_thea.is_alive():
+        mouse_thea.start()
 
     
-    #Frame Rate
-    cTime = time.time()
-    fps = 1/(cTime-pTime)
-    pTime = cTime
+   
+
     
     cv2.putText(frame, "FPS: " + str(int(fps)), (20,50), cv2.FONT_HERSHEY_PLAIN, 2, (255,255, 0), 2)
 
@@ -155,9 +149,14 @@ while cap.isOpened():
     #Show video
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     cv2.imshow("Dieu khien con tro chuot", frame)
+   
+    
     if cv2.waitKey(20) & 0xFF == ord("q"):
         break
 
+
+threa_scroll.join()
+mouse_thea.join()
 cap.release()
 cv2.destroyAllWindows()
 
