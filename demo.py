@@ -126,7 +126,7 @@ while cap.isOpened():
     
 
     threa_scroll = threading.Thread(target=scroll_mose, args=(x,))
-    cTime
+  
     if abs(x) > 22 and time.time() - wait_time > 0.5:
         wait_time = time.time()
         pyautogui.scroll(2)
